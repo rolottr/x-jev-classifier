@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      width: 320px;
+      background: #16181c;
+      color: #e7e9ea;
+      font: 14px/1.5 -apple-system, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 16px;
+    }
+    h1 { font-size: 15px; margin: 0 0 12px; }
+    label { display: block; font-size: 12px; color: #71767b; margin: 10px 0 4px; }
+    input[type="password"], input[type="text"] {
+      width: 100%;
+      box-sizing: border-box;
+      background: #000;
+      border: 1px solid #536471;
+      border-radius: 8px;
+      color: #e7e9ea;
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    .row { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+    button {
+      background: #1d9bf0;
+      color: #fff;
+      border: 0;
+      border-radius: 9999px;
+      padding: 8px 16px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button.ghost { background: transparent; border: 1px solid #536471; color: #e7e9ea; }
+    #status { font-size: 12px; color: #00ba7c; margin-top: 8px; min-height: 16px; }
+    .hint { font-size: 11px; color: #71767b; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <h1>🥷 X Jev Classifier</h1>
+
+  <label for="apiKey">TypeSafe API key</label>
+  <input type="password" id="apiKey" placeholder="apikey_..." autocomplete="off">
+
+  <label for="model">Model</label>
+  <input type="text" id="model" placeholder="jev-latest">
+
+  <div class="row">
+    <input type="checkbox" id="enabled" checked>
+    <label for="enabled" style="margin: 0;">Mark posts (uncheck to pause)</label>
+  </div>
+
+  <div class="row">
+    <button id="save">Save</button>
+    <button id="clear" class="ghost">Clear cache</button>
+  </div>
+
+  <div id="status"></div>
+
+  <div class="hint">
+    The key is stored only in this browser (chrome.storage.local). It is sent
+    only to api.typesafe.ai. Get a key at console.typesafe.ai/settings/keys.
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>
