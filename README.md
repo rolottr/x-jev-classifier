@@ -24,13 +24,28 @@ Results are cached in `chrome.storage.local`.
 ## Draft composer
 
 The composer panel updates after about 800 ms of inactivity. It uses the
-same editor for home posts and replies.
+same editor for home posts and replies. An empty draft keeps the whole
+panel collapsed; the first successful result expands it.
 
-The panel has a MEME/PRO switch:
+The panel has a MEME/NORMIE switch:
 
-- **MEME** uses the 15-question feed classifier.
-- **PRO** uses 50 merged questions and displays EMOTION, CONVERSATION,
-  SHARE, TIMELY, CRAFT and IDENTITY.
+- **MEME** uses the 15-question feed classifier and shows the six tags as
+  a 100-point distribution.
+- **NORMIE** uses all 50 merged questions, including 10 choice questions and
+  9 anti-signals. Every question maps to at least one label. Each label
+  scores 0–100 on its own:
+  `score = round(100 × clamp(mean(positives) × (1 − mean(penalties)), 0, 1))`.
+  A choice option counts as `P(option) × option weight`. Anti-signal and
+  format penalties reduce only their assigned labels. The six
+  scores are independent and never share a total, so a strong draft can
+  read 70 or 80 on one label while another stays low.
+
+In NORMIE mode, hover or focus a bar to see its evidence list below the
+grid: a green dot marks a positive point, a red dot marks a penalty, and a
+grey dot marks a point that does not apply to the post.
+Hovering or focusing another bar replaces the list; leaving the area
+collapses it. Evidence below 0.5 confidence is grey and does not claim that
+the point applies. MEME never shows the evidence list.
 
 The selected mode is saved in `chrome.storage.local`. Mode changes show a
 spinner, then animate the new six bars from zero. Retyping updates the

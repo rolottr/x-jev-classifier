@@ -130,7 +130,7 @@
   cursor: pointer;
 }
 
-/* the two internal labels: 🚀 PRO on the left, 🤮 MEME on the right */
+/* the two internal labels: 🚀 NORMIE on the left, 🤮 MEME on the right */
 .xjc-opt {
   border-radius: 9999px;
   padding: 1px 10px;
@@ -139,8 +139,75 @@
 }
 
 /* the selected side turns blue, the other stays dark gray */
-.xjc-switch[aria-checked="true"] .xjc-opt-pro,
+.xjc-switch[aria-checked="true"] .xjc-opt-normie,
 .xjc-switch[aria-checked="false"] .xjc-opt-meme {
   color: #fff;
   background: #1d9bf0;
+}
+
+/* NORMIE evidence list below the six bars: one label at a time, green dot
+   for a positive contribution, red dot for a penalty. NORMIE only; the
+   wrapper is built with the NORMIE grid and only its title and items ever
+   change. */
+.xjc-evidence[hidden] {
+  display: none !important;
+}
+
+.xjc-evidence {
+  margin-top: 8px;
+  padding-top: 6px;
+}
+
+.xjc-evidence-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #71767b;
+  margin-bottom: 4px;
+}
+
+.xjc-evidence-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.xjc-evidence-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: #e7e9ea;
+}
+
+.xjc-evidence-item.xjc-ev-none {
+  color: #71767b;
+}
+
+/* small dot: green for a pass, red for a failure or penalty, grey when
+   the point did not apply to the post */
+.xjc-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: none;
+}
+
+.xjc-ev-pos .xjc-dot {
+  background: #00ba7c;
+}
+
+.xjc-ev-neg .xjc-dot {
+  background: #f4212e;
+}
+
+.xjc-ev-neutral {
+  color: #71767b;
+}
+
+.xjc-ev-neutral .xjc-dot {
+  background: #71767b;
 }

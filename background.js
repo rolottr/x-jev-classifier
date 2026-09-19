@@ -612,9 +612,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
 //   * its own message type ("composerAnalyze"), so the feed "classify"
 //     contract and result shape stay untouched;
 //   * two modes: MEME sends the SAME tuned 15-question classifier set
-//     (QUESTIONS above), byte for byte; PRO sends the 50-question merged
+//     (QUESTIONS above), byte for byte; NORMIE sends the 50-question merged
 //     source set that the content script ships (composer-questions.js)
-//     inside the message, so this generated file needs no PRO copy;
+//     inside the message, so this generated file needs no NORMIE copy;
 //   * no cache and no storage: draft text is sent to the API and dropped;
 //   * the previous in-flight request for a tab is aborted when a new one
 //     starts, so stale results cannot win.
@@ -639,9 +639,9 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     if (composerAbort.has(tabId)) composerAbort.get(tabId).abort();
     const ac = new AbortController();
     composerAbort.set(tabId, ac);
-    // MEME keeps the tuned classifier set above; PRO carries its own
+    // MEME keeps the tuned classifier set above; NORMIE carries its own
     // 50 questions in the message.
-    const questions = msg.mode === "pro"
+    const questions = msg.mode === "normie"
       && msg.questions && typeof msg.questions === "object"
       && !Array.isArray(msg.questions)
       ? msg.questions

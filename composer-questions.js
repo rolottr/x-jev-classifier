@@ -6,8 +6,8 @@
 //     draft request asks the same questions as the feed badges.
 //     GENERATED from background.js; a Node test pins the two together,
 //     so they can never drift.
-//   * PRO  — exactly 50 questions merged from the recovered 61-question
-//     source set (11 close pairs merged, see PRO_META below). The merge
+//   * NORMIE  — exactly 50 questions merged from the recovered 61-question
+//     source set (11 close pairs merged, see NORMIE_META below). The merge
 //     keeps the family coverage of the source: EMOTION, CONVERSATION,
 //     SHAREABILITY, TIMELINESS, CRAFT, IDENTITY, FORMAT, ANTI-SIGNAL.
 //
@@ -126,11 +126,11 @@
   const KINDS = {};
   for (const q of Object.values(QUESTIONS)) KINDS[q.type] = (KINDS[q.type] || 0) + 1;
 
-  // ==== PRO SET ====
+  // ==== NORMIE SET ====
   // Exactly 50 questions merged from the recovered 61-question source
   // set. Same concepts, same families; 11 close pairs became single
-  // combined questions (PRO_META below is the authoritative source map).
-  const PRO_QUESTIONS = {
+  // combined questions (NORMIE_META below is the authoritative source map).
+  const NORMIE_QUESTIONS = {
     // -- EMOTION (7 of 9: humour+twist and self-deprecating+vulnerability merged) --
     "p_emotion_dominant": {
       "type": "choice",
@@ -152,7 +152,7 @@
     },
     "p_emotion_humour_twist": {
       "type": "score",
-      "instructions": "How funny it is to its audience, and whether a twist or punchline breaks the reader's expectation",
+      "instructions": "How funny it is to its audience. Score the funny above all: a plainly funny post with no surprise still scores high, and a twist that raises no smile scores low. A twist or punchline adds, it is not required",
       "criteria": [
         "Not funny, and nothing unexpected",
         "A mild smile or a small twist",
@@ -201,7 +201,7 @@
     },
     "p_conv_easy_answer": {
       "type": "score",
-      "instructions": "How easy it is for a reader to reply to it",
+      "instructions": "How easily the post hands the reader a reply worth writing: a question, a gap or a take to react to. Anyone can type a reply under any post; when the post gives the reader nothing to say, score low",
       "criteria": [
         "Nothing to say",
         "Hard to answer",
@@ -275,7 +275,7 @@
     },
     "p_share_quotable": {
       "type": "noul",
-      "instructions": "One line can be lifted out and quoted on its own"
+      "instructions": "One line is worth repeating on its own: a self-contained thought or remark someone would quote or repost as itself. Any plain sentence can be lifted out; that alone is not quotable. An emoji-only or one-word post is never quotable"
     },
     "p_share_useful_favour": {
       "type": "noul",
@@ -312,7 +312,7 @@
     },
     "p_time_meme_format": {
       "type": "noul",
-      "instructions": "Built on a known template, format or meme"
+      "instructions": "Built on a recognizable live meme or template: copied phrasing, a recurring joke frame, a named format. A common posting style — caps BREAKING, thread numbering, a poll — is not a meme format"
     },
     // -- CRAFT (7 of 9: specificity+concrete-numbers and one-point+wordiness merged) --
     "p_craft_specific": {
@@ -432,7 +432,7 @@
     },
     "p_format_reused_template": {
       "type": "noul",
-      "instructions": "A structure readers have seen many times elsewhere"
+      "instructions": "Built from a recycled, recognizable format readers have seen many times: copypasta, a named meme, a repeated joke frame, giveaway or engagement-bait templates. A familiar posting style — a short anecdote, a list, caps BREAKING, a numbered thread — is not a recycled template"
     },
     // -- ANTI-SIGNAL (9 of 10: platitude+low-effort merged) --
     "p_anti_reply_farm": {
@@ -481,13 +481,13 @@
     },
     "p_anti_politics": {
       "type": "noul",
-      "instructions": "Politics or culture war content"
+      "instructions": "The post is explicitly political or culture-war content: it discusses public policy, parties, elections, governments, political groups, or a clear us-versus-them culture conflict. Do not mark philosophy, spirituality, religion, or abstract questions about humanity as political unless they also attack or organise a political group, policy, or movement. Naming a country, nationality, company, sport or public event is not political by itself, and celebrity gossip, songs, films and art references are not politics: the post must take a side on policy, parties, elections or a group conflict"
     }
   };
 
-  // ==== PRO SOURCE COVERAGE ====
-  // The recovered source set had 61 ids (PRO_SOURCE_IDS pins them all).
-  // Every PRO question lists the source ids it covers in PRO_META. The
+  // ==== NORMIE SOURCE COVERAGE ====
+  // The recovered source set had 61 ids (NORMIE_SOURCE_IDS pins them all).
+  // Every NORMIE question lists the source ids it covers in NORMIE_META. The
   // 11 entries with two sources are the merges — 61 sources flow into
   // 50 questions, with no source id dropped or doubled:
   //   e_humour                + e_surprise_twist          -> p_emotion_humour_twist
@@ -501,7 +501,7 @@
   //   i_role                  + i_self_intro              -> p_identity_role
   //   i_addresses_group_as_peer + i_ingroup_affirmation   -> p_identity_ingroup
   //   a_platitude             + a_low_effort              -> p_anti_empty_words
-  const PRO_SOURCE_IDS = [
+  const NORMIE_SOURCE_IDS = [
     "e_dominant_emotion", "e_milestone_joy", "e_humour", "e_self_deprecating",
     "e_indignation", "e_vulnerability", "e_relatable_experience",
     "e_surprise_twist", "e_gushing_no_tension",
@@ -525,7 +525,7 @@
     "a_off_platform_push", "a_offensive", "a_politics_culture_war",
   ];
 
-  const PRO_META = [
+  const NORMIE_META = [
     { id: "p_emotion_dominant", family: "EMOTION", sources: ["e_dominant_emotion"] },
     { id: "p_emotion_milestone", family: "EMOTION", sources: ["e_milestone_joy"] },
     { id: "p_emotion_humour_twist", family: "EMOTION", sources: ["e_humour", "e_surprise_twist"] },
@@ -578,27 +578,27 @@
     { id: "p_anti_politics", family: "ANTI-SIGNAL", sources: ["a_politics_culture_war"] },
   ];
 
-  const PRO_IDS = Object.keys(PRO_QUESTIONS);
-  const PRO_KINDS = {};
-  for (const q of Object.values(PRO_QUESTIONS)) PRO_KINDS[q.type] = (PRO_KINDS[q.type] || 0) + 1;
-  const PRO_FAMILIES = {};
-  for (const m of PRO_META) PRO_FAMILIES[m.family] = (PRO_FAMILIES[m.family] || 0) + 1;
+  const NORMIE_IDS = Object.keys(NORMIE_QUESTIONS);
+  const NORMIE_KINDS = {};
+  for (const q of Object.values(NORMIE_QUESTIONS)) NORMIE_KINDS[q.type] = (NORMIE_KINDS[q.type] || 0) + 1;
+  const NORMIE_FAMILIES = {};
+  for (const m of NORMIE_META) NORMIE_FAMILIES[m.family] = (NORMIE_FAMILIES[m.family] || 0) + 1;
 
   function toApi() {
     return QUESTIONS;
   }
 
-  function proApi() {
-    return PRO_QUESTIONS;
+  function normieApi() {
+    return NORMIE_QUESTIONS;
   }
 
   function questionsFor(mode) {
-    return mode === "pro" ? PRO_QUESTIONS : QUESTIONS;
+    return mode === "normie" ? NORMIE_QUESTIONS : QUESTIONS;
   }
 
   return {
     QUESTIONS, IDS, COUNT: IDS.length, KINDS, toApi,
-    PRO_QUESTIONS, PRO_IDS, PRO_COUNT: PRO_IDS.length, PRO_KINDS, proApi,
-    PRO_META, PRO_SOURCE_IDS, PRO_FAMILIES, questionsFor,
+    NORMIE_QUESTIONS, NORMIE_IDS, NORMIE_COUNT: NORMIE_IDS.length, NORMIE_KINDS, normieApi,
+    NORMIE_META, NORMIE_SOURCE_IDS, NORMIE_FAMILIES, questionsFor,
   };
 });

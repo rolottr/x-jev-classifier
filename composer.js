@@ -6,20 +6,30 @@
 // editor's text. Tiles are built with createElement/textContent only.
 //
 // Two modes share the same slot: MEME (the classifier's 15 questions,
-// tags SHITPOST/BAIT/CRINGE/SHILLING/PUMP/RAGE) and PRO (the merged
-// 50-question source set, dimensions EMOTION/CONVERSATION/SHARE/
-// TIMELY/CRAFT/IDENTITY). One segmented switch — a single semantic
-// role="switch" button with internal labels, 🚀 PRO on the left,
-// 🤮 MEME on the right — sits at the top-right, above the six bars.
-// The choice is saved to chrome.storage.local as analysisMode; MEME is
-// the default, so existing users stay on MEME. Switching the mode
-// invalidates the in-flight reply at once, drops the current bars for
-// a small spinner and re-reads the current draft; when the new mode's
-// reply lands, fresh bars rise from zero to their result widths. The
-// switch stays visible throughout. The grid, its tiles and the switch
-// are built once per result and never replaced by a later result in
-// the same mode: only bar widths, ARIA values and the tile emoji +
-// names change in place while typing.
+// tags SHITPOST/BAIT/CRINGE/SHILLING/PUMP/RAGE as a 100-point
+// distribution) and NORMIE (the merged 50-question set; the labels
+// EMOTION/CONVERSATION/SHARE/TIMELY/CRAFT/IDENTITY each score 0..100 on
+// their own — no shared total, see composer-analysis.js). One segmented
+// switch — a single semantic role="switch" button with internal labels,
+// 🚀 NORMIE on the left, 🤮 MEME on the right — sits at the top-right,
+// above the six bars. The choice is saved to chrome.storage.local as
+// analysisMode; MEME is the default, so existing users stay on MEME.
+// Switching the mode invalidates the in-flight reply at once, drops the
+// current bars for a small spinner and re-reads the current draft; when
+// the new mode's reply lands, fresh bars rise from zero to their result
+// widths. The switch stays visible throughout. The grid, its tiles and
+// the switch are built once per result and never replaced by a later
+// result in the same mode: only bar widths, ARIA values and the tile
+// emoji + names change in place while typing.
+//
+// NORMIE evidence: below the six bars (NORMIE only) sits the evidence list
+// for the hovered or focused label — green means a positive point, red
+// means a penalty, and grey means the point does not apply. Hovering or
+// focusing another label replaces the list in place; leaving the
+// grid/evidence area collapses it. MEME never builds it.
+//
+// Empty draft: the whole analyzer panel (switch, bars, evidence) stays
+// collapsed; the first successful result expands it.
 //
 // Live X DOM contract (stable selectors, no hashed classes, no <form> —
 // the composer has none):
@@ -58,12 +68,14 @@
   let panel = null;  // the single panel element, moved between composers
   let slot = null;   // panel child holding the status line or the grid
   let modeRow = null; // { row, sw }: the switch, built once
-  let ui = null;     // { grid, tiles: [{node, fill, name}] }: built once, updated in place
+  let ui = null;     // { grid, tiles: [{node, fill, name}], ev, mode }
   let timer = null;  // debounce timer
   const gate = A.staleGate(); // in-flight replies must still be current
   let sentimentEnabled = null;
-  let mode = "meme"; // "meme" | "pro"; persisted as analysisMode, default MEME
+  let mode = "meme"; // "meme" | "normie"; persisted as analysisMode, default MEME
   let modeLoading = false; // a mode change dropped the bars and waits for its reply
+  let currentNorm = null; // latest NORMIE result's normalized answers (evidence reads it)
+  let shownOnce = false; // the panel has expanded at least once
 
   // One animation frame in a browser; synchronous where frames do not
   // exist (the Node harness without a frame stub), so deferred work
@@ -80,8 +92,18 @@
     if (!cands.length) return null;
     if (editor && cands.includes(editor)) return editor;
     // prefer an editor that already holds a draft (reopened composer)
-    const withText = cands.find((el) => (el.innerText || "").trim());
+    const withText = cands.find((el) => readDraft(el));
     return withText || cands[0];
+  }
+
+  // X can leave a newline, non-breaking space or zero-width marker in an
+  // empty contenteditable. Treat all of those as empty so the analyzer is
+  // removed as soon as the user clears the draft.
+  function readDraft(el) {
+    return (el && el.innerText || "")
+      .replace(/[\u00a0\u200b\u200c\u200d\ufeff]/g, " ")
+      .trim()
+      .slice(0, MAX_TEXT);
   }
 
   function makePanel() {
@@ -95,13 +117,13 @@
     slot.className = "xjc-slot";
     body.append(makeModeRow(), slot); // the switch sits above, top-right
     el.append(body);
-    el.hidden = true;
+    el.hidden = true; // empty draft: fully collapsed until the first result
     return el;
   }
 
   // The mode control: ONE compact segmented switch, not two standalone
   // buttons. A single button carries role="switch" (aria-checked true
-  // means PRO, false means MEME) and two internal labels: 🚀 PRO on
+  // means NORMIE, false means MEME) and two internal labels: 🚀 NORMIE on
   // the left, 🤮 MEME on the right. Built once with the panel; only
   // its aria-checked state ever changes.
   function makeModeRow() {
@@ -112,15 +134,15 @@
     sw.className = "xjc-switch";
     sw.id = "xjc-mode-switch";
     sw.setAttribute("role", "switch");
-    sw.setAttribute("aria-label", "Analysis mode: PRO or MEME");
+    sw.setAttribute("aria-label", "Analysis mode: NORMIE or MEME");
     const opt = (m, label) => {
       const s = document.createElement("span");
       s.className = "xjc-opt xjc-opt-" + m;
       s.textContent = label;
       return s;
     };
-    sw.append(opt("pro", "🚀 PRO"), opt("meme", "🤮 MEME"));
-    sw.addEventListener("click", () => selectMode(mode === "pro" ? "meme" : "pro"));
+    sw.append(opt("normie", "🚀 NORMIE"), opt("meme", "🤮 MEME"));
+    sw.addEventListener("click", () => selectMode(mode === "normie" ? "meme" : "normie"));
     modeRow = { row, sw };
     row.append(sw);
     syncModeUi();
@@ -132,7 +154,7 @@
   // names, emojis and meter labels. No node is replaced.
   function syncModeUi() {
     if (modeRow) {
-      modeRow.sw.setAttribute("aria-checked", String(mode === "pro"));
+      modeRow.sw.setAttribute("aria-checked", String(mode === "normie"));
     }
     if (ui && ui.grid.isConnected) {
       const meta = A.tileMeta(mode);
@@ -152,7 +174,7 @@
     // invalidate the in-flight reply at once, then re-read the draft
     resetPending();
     if (sentimentEnabled === true && editor && editor.isConnected
-        && (editor.innerText || "").trim()) {
+        && readDraft(editor)) {
       placePanel();
       beginModeLoad(); // bars out, spinner in, switch stays visible
       schedule();
@@ -190,6 +212,7 @@
 
   function hidePanel() {
     if (panel) panel.hidden = true;
+    currentNorm = null;
   }
 
   function resetPending() {
@@ -209,6 +232,7 @@
   function setStatus(text, isError) {
     if (!panel || !slot) return;
     modeLoading = false; // a status line ends any mode-change load
+    shownOnce = true; // a status line (reading, error) expands the panel
     panel.hidden = false;
     slot.replaceChildren(statusNode(text, isError));
   }
@@ -235,14 +259,99 @@
     slot.replaceChildren(spinnerNode());
   }
 
-  // The grid is built when a result needs one and no grid is attached
-  // (first result, after an error state, or after a mode change dropped
-  // the old bars for the spinner); every later result in the same mode
-  // only updates the existing fill widths and ARIA values in place, so
-  // retyping never rebuilds the DOM the panel is showing. The switch
-  // lives outside the slot and survives every swap.
+  // ==== NORMIE EVIDENCE LIST ====
+  // Below the six NORMIE bars: the checks and penalties behind the hovered
+  // or focused label, one label at a time. Wrapper,
+  // title and list are built once with the grid; only the title text,
+  // the aria-label and the list items ever change. MEME never builds it.
+  function makeEvidence() {
+    const wrap = document.createElement("div");
+    wrap.className = "xjc-evidence";
+    wrap.setAttribute("role", "region");
+    wrap.setAttribute("aria-label", "Evidence");
+    const title = document.createElement("div");
+    title.className = "xjc-evidence-title";
+    const list = document.createElement("ul");
+    list.className = "xjc-evidence-list";
+    wrap.append(title, list);
+    wrap.hidden = true;
+    return { wrap, title, list, active: -1 };
+  }
+
+  function evidenceItem(plus, text) {
+    const li = document.createElement("li");
+    const state = plus === null
+      ? "xjc-ev-neutral"
+      : (plus ? "xjc-ev-pos" : "xjc-ev-neg");
+    li.className = "xjc-evidence-item " + state;
+    const dot = document.createElement("i");
+    dot.className = "xjc-dot";
+    dot.setAttribute("aria-hidden", "true");
+    const span = document.createElement("span");
+    span.textContent = text;
+    li.append(dot, span);
+    return li;
+  }
+
+  function showEvidence(idx) {
+    const ev = ui && ui.ev;
+    if (!ev || !currentNorm) return;
+    const meta = A.tileMeta("normie")[idx];
+    if (!meta) return;
+    ev.active = idx;
+    ev.title.textContent = meta.emoji + " " + meta.label;
+    ev.wrap.setAttribute("aria-label", "Evidence for " + meta.label);
+    const items = A.normieEvidence(meta.id, currentNorm);
+    if (items.length) {
+      ev.list.replaceChildren(...items.map((it) => evidenceItem(it.plus, it.text)));
+    } else {
+      const li = document.createElement("li");
+      li.className = "xjc-evidence-item xjc-ev-none";
+      li.textContent = "No active evidence for this label.";
+      ev.list.replaceChildren(li);
+    }
+    ev.wrap.hidden = false;
+  }
+
+  function hideEvidence() {
+    const ev = ui && ui.ev;
+    if (!ev) return;
+    ev.active = -1;
+    ev.wrap.hidden = true;
+  }
+
+  // Hover/focus rules: entering a tile shows that label at once;
+  // entering another tile replaces the list in place; leaving the
+  // grid/evidence area, or blurring the tiles, collapses it. A queued
+  // hide waits one frame, so a move into a neighbouring tile or into
+  // the evidence area itself cancels it.
+  function wireEvidence(grid, refs, ev) {
+    let hideQueued = false;
+    const queueHide = () => {
+      hideQueued = true;
+      nextFrame(() => { if (hideQueued) hideEvidence(); });
+    };
+    const stay = () => { hideQueued = false; };
+    refs.forEach((ref, i) => {
+      ref.node.addEventListener("mouseenter", () => { stay(); showEvidence(i); });
+      ref.node.addEventListener("focus", () => { stay(); showEvidence(i); });
+      ref.node.addEventListener("blur", queueHide);
+    });
+    grid.addEventListener("mouseenter", stay);
+    grid.addEventListener("mouseleave", queueHide);
+    ev.wrap.addEventListener("mouseenter", stay);
+    ev.wrap.addEventListener("mouseleave", queueHide);
+  }
+
+  // The grid is built when a result needs one and no matching grid is
+  // attached (first result, after an error state, or after a mode change
+  // dropped the old bars for the spinner); every later result in the
+  // same mode only updates the existing fill widths and ARIA values in
+  // place, so retyping never rebuilds the DOM the panel is showing. A
+  // NORMIE grid also gets focusable tiles and the evidence list below the
+  // bars. The switch lives outside the slot and survives every swap.
   function ensureGrid(slotEl, tiles) {
-    if (ui && ui.grid.parentElement === slotEl) return ui;
+    if (ui && ui.grid.parentElement === slotEl && ui.mode === mode) return ui;
     const grid = document.createElement("div");
     grid.className = "xjc-grid";
     const refs = tiles.map((t) => {
@@ -254,6 +363,7 @@
       tile.setAttribute("aria-valuemax", "100");
       tile.setAttribute("aria-valuenow", "0");
       tile.setAttribute("aria-valuetext", "0 of 100 points");
+      if (mode === "normie") tile.setAttribute("tabindex", "0"); // focus shows evidence
       const bar = document.createElement("span");
       bar.className = "xjc-tile-bar";
       bar.setAttribute("aria-hidden", "true");
@@ -269,8 +379,15 @@
       grid.append(tile);
       return { node: tile, fill, name };
     });
-    slotEl.replaceChildren(grid); // one-time build, never a result update
-    ui = { grid, tiles: refs };
+    if (mode === "normie") {
+      const ev = makeEvidence();
+      ui = { grid, tiles: refs, ev, mode };
+      wireEvidence(grid, refs, ev);
+      slotEl.replaceChildren(grid, ev.wrap); // evidence sits below the bars
+    } else {
+      ui = { grid, tiles: refs, ev: null, mode };
+      slotEl.replaceChildren(grid); // MEME: bars only, never evidence
+    }
     return ui;
   }
 
@@ -284,24 +401,40 @@
   function renderResult(answers) {
     const norm = A.normalizeAnswers(answers, Q.questionsFor(mode));
     const tiles = A.tilesFor(mode, norm);
-    const dist = A.distribution(tiles);
-    if (!dist) {
-      setStatus("No readings for this draft.");
-      return;
+    let points;
+    if (mode === "normie") {
+      // Independent 0..100 label scores: a null label is displayed as
+      // 0, and only a payload where every label is null is empty.
+      if (!tiles.some((t) => t.score !== null)) {
+        setStatus("No readings for this draft.");
+        return;
+      }
+      points = tiles.map((t) => (t.score === null ? 0 : t.score));
+    } else {
+      const dist = A.distribution(tiles);
+      if (!dist) {
+        setStatus("No readings for this draft.");
+        return;
+      }
+      points = dist.points;
     }
-    panel.hidden = false;
+    panel.hidden = false; // the first successful result expands the panel
+    shownOnce = true;
     if (!slot) return;
+    currentNorm = mode === "normie" ? norm : null;
     const animate = modeLoading; // this reply ends a mode-change load
     modeLoading = false;
     const current = ensureGrid(slot, tiles);
     const apply = () => {
       tiles.forEach((_, i) => {
-        const points = dist.points[i];
+        const p = points[i];
         const ref = current.tiles[i];
-        ref.node.setAttribute("aria-valuenow", String(points));
-        ref.node.setAttribute("aria-valuetext", points + " of 100 points");
-        ref.fill.style.width = points + "%"; // points already sum to 100
+        ref.node.setAttribute("aria-valuenow", String(p));
+        ref.node.setAttribute("aria-valuetext", p + " of 100 points");
+        ref.fill.style.width = p + "%"; // NORMIE: own 0..100; MEME: share of 100
       });
+      // a result while evidence is open refreshes the open label's items
+      if (current.ev && current.ev.active >= 0) showEvidence(current.ev.active);
     };
     if (animate) fromZero(apply); // bars rise from zero after a mode change
     else apply(); // same mode: widths simply move in place
@@ -310,24 +443,25 @@
   async function analyze() {
     timer = null;
     if (sentimentEnabled !== true || !editor || !editor.isConnected) return;
-    const text = (editor.innerText || "").replace(/\u00a0/g, " ").trim().slice(0, MAX_TEXT);
+    const text = readDraft(editor);
     if (!text) { // empty draft: hide and invalidate
       resetPending();
       hidePanel();
       return;
     }
     placePanel();
-    // A grid already on screen stays visible while the new request runs;
-    // only the first run (or a run after an error state) shows the line.
-    // A mode-change load keeps its spinner instead.
-    if ((!ui || !ui.grid.isConnected) && !modeLoading) {
+    // Before the first result the panel stays fully collapsed (switch
+    // included); the first successful reply expands it. Once expanded,
+    // a run without an attached grid (after an error state) shows the
+    // reading line again. A mode-change load keeps its spinner.
+    if ((!ui || !ui.grid.isConnected) && !modeLoading && shownOnce) {
       setStatus("Reading the draft\u2026");
     }
     const my = gate.take();
     let res;
     try {
       const msg = { type: "composerAnalyze", text, mode };
-      if (mode === "pro") msg.questions = Q.proApi(); // the 50-question PRO set
+      if (mode === "normie") msg.questions = Q.normieApi(); // the 50-question NORMIE set
       res = await chrome.runtime.sendMessage(msg);
     } catch (e) {
       if (gate.current(my)) setStatus("Extension error. Reload the X tab.", true);
@@ -355,6 +489,11 @@
     // request starts. A fast response must not render for text changed during
     // the quiet period. The next analysis runs after the next quiet period.
     gate.bump();
+    if (!readDraft(editor)) {
+      timer = null;
+      hidePanel();
+      return;
+    }
     timer = setTimeout(analyze, DEBOUNCE_MS);
   }
 
@@ -362,8 +501,11 @@
   // (main timeline box, modal, inline reply) without bind/unbind churn.
   document.addEventListener("input", (e) => {
     const t = e.target;
-    if (!(t && t.matches && t.matches(EDITOR_SEL))) return;
-    editor = t;
+    const target = t && t.closest
+      ? t.closest(EDITOR_SEL)
+      : (t && t.matches && t.matches(EDITOR_SEL) ? t : null);
+    if (!target) return;
+    editor = target;
     schedule();
   }, true);
 
@@ -378,7 +520,7 @@
         placePanel();
         // a reopened composer can hold a restored draft: read it once
         if ((editor.innerText || "").trim()) schedule();
-        else hidePanel();
+        else hidePanel(); // no draft: the panel stays collapsed
       } else {
         if (panel) panel.remove(); // composer closed: X drops the subtree anyway
         panel = null;
@@ -388,6 +530,10 @@
       }
     } else if (editor) {
       placePanel(); // re-insert if a rerender dropped the panel
+      if (!readDraft(editor)) {
+        resetPending();
+        hidePanel();
+      }
     }
   }
 
@@ -419,7 +565,7 @@
   async function loadMode() {
     try {
       const s = await chrome.storage.local.get(["analysisMode"]);
-      mode = s && s.analysisMode === "pro" ? "pro" : "meme";
+      mode = s && s.analysisMode === "normie" ? "normie" : "meme";
     } catch (e) {
       mode = "meme"; // storage unavailable: stay on the default
     }
