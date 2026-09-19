@@ -522,11 +522,20 @@ function hash(s) {
 }
 
 async function settings() {
-  const s = await chrome.storage.local.get(["apiKey", "model", "enabled"]);
+  const s = await chrome.storage.local.get([
+    "apiKey", "model", "enabled", "feedEnabled", "sentimentEnabled",
+  ]);
+  const legacyEnabled = s.enabled !== false;
+  const feedEnabled = s.feedEnabled === undefined
+    ? legacyEnabled : s.feedEnabled !== false;
+  const sentimentEnabled = s.sentimentEnabled === undefined
+    ? legacyEnabled : s.sentimentEnabled !== false;
   return {
     apiKey: s.apiKey || "",
     model: s.model || "jev-latest",
-    enabled: s.enabled !== false,
+    enabled: legacyEnabled,
+    feedEnabled,
+    sentimentEnabled,
   };
 }
 
@@ -581,7 +590,7 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
   chain = chain
     .then(async () => {
       const s = await settings();
-      if (!s.enabled) return { error: "disabled" };
+      if (!s.feedEnabled) return { error: "disabled" };
       if (!s.apiKey) return { error: "no-key" };
       const text = String(msg.text || "");
       const quote = String(msg.quote || "").slice(0, 1200);
@@ -595,5 +604,71 @@ chrome.runtime.onMessage.addListener((msg, sender, reply) => {
     })
     .catch((e) => ({ error: String(e && e.message ? e.message : e) }))
     .then(reply);
+  return true; // async reply
+});
+
+// ==== COMPOSER TAG PANEL (hand-written addition; NOT generated) ====
+// Draft analysis for the composer, separate from the feed classifier above:
+//   * its own message type ("composerAnalyze"), so the feed "classify"
+//     contract and result shape stay untouched;
+//   * two modes: MEME sends the SAME tuned 15-question classifier set
+//     (QUESTIONS above), byte for byte; PRO sends the 50-question merged
+//     source set that the content script ships (composer-questions.js)
+//     inside the message, so this generated file needs no PRO copy;
+//   * no cache and no storage: draft text is sent to the API and dropped;
+//   * the previous in-flight request for a tab is aborted when a new one
+//     starts, so stale results cannot win.
+// If this file is regenerated from jev-auto-tuner/config.json, re-append
+// this block.
+
+const composerAbort = new Map(); // tabId -> AbortController
+
+chrome.tabs.onRemoved.addListener((tabId) => composerAbort.delete(tabId));
+
+function buildComposerState(text) {
+  return `Draft X post, not yet posted:\n"""\n${text}\n"""`;
+}
+
+chrome.runtime.onMessage.addListener((msg, sender, reply) => {
+  if (!msg || msg.type !== "composerAnalyze") return false;
+  (async () => {
+    const s = await settings(); // same apiKey / model / enabled as the feed
+    if (!s.sentimentEnabled) return { error: "sentiment-disabled" };
+    if (!s.apiKey) return { error: "no-key" };
+    const tabId = sender.tab && sender.tab.id;
+    if (composerAbort.has(tabId)) composerAbort.get(tabId).abort();
+    const ac = new AbortController();
+    composerAbort.set(tabId, ac);
+    // MEME keeps the tuned classifier set above; PRO carries its own
+    // 50 questions in the message.
+    const questions = msg.mode === "pro"
+      && msg.questions && typeof msg.questions === "object"
+      && !Array.isArray(msg.questions)
+      ? msg.questions
+      : QUESTIONS;
+    try {
+      const res = await fetch("https://api.typesafe.ai/v1/systemone", {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${s.apiKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          state: buildComposerState(String(msg.text || "").slice(0, 2000)),
+          model: s.model,
+          questions,
+        }),
+        signal: ac.signal,
+      });
+      if (!res.ok) throw new Error(`api ${res.status}`);
+      const data = await res.json();
+      return { answers: data.answers || {} };
+    } catch (e) {
+      if (e && e.name === "AbortError") return { error: "aborted" };
+      return { error: String(e && e.message ? e.message : e) };
+    } finally {
+      if (composerAbort.get(tabId) === ac) composerAbort.delete(tabId);
+    }
+  })().then(reply);
   return true; // async reply
 });
