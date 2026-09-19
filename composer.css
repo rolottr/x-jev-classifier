@@ -1,0 +1,146 @@
+/* X Jev Classifier — composer tag panel styles.
+   Extension prefix: xjc-. The panel wears no card chrome: one straight
+   1px top line separates it from the composer, nothing else. Fixed dark
+   palette matching content.css, so the bars and labels read correctly
+   on X dark mode like the feed badges. */
+
+.xjc-panel[hidden] {
+  display: none !important;
+}
+
+/* no outer background card, no rounded border, no shadow, no side or
+   bottom borders: a single 1px top line across the analyzer */
+.xjc-panel {
+  margin: 6px 0 8px;
+  width: 100%;
+  max-width: 598px;
+  box-sizing: border-box;
+  border-top: 1px solid #2f3336;
+  padding: 8px 0 0;
+  color: #e7e9ea;
+  font-family: Menlo, Monaco, "Courier New", monospace !important;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* the slot holds the status line, the spinner or the grid; the mode
+   switch above it never gets replaced by a result */
+.xjc-slot {
+  display: block;
+}
+
+/* loading / error / empty states */
+.xjc-status {
+  font-size: 12px;
+  color: #71767b;
+  padding: 2px 0 4px;
+}
+
+.xjc-status.xjc-error {
+  color: #f4212e;
+}
+
+/* exactly six tiles in a 3-column by 2-row grid */
+.xjc-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+/* bare tile stack: no card chrome, the grid alone frames the tiles */
+.xjc-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+}
+
+.xjc-tile-name {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #e7e9ea;
+  white-space: nowrap;
+}
+
+/* share bar above the emoji + name */
+.xjc-tile-bar {
+  width: 100%;
+  height: 7px;
+  background: #2f3336;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.xjc-tile-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--xjc-c, #1d9bf0);
+  transition: width 0.45s ease;
+}
+
+/* mode row above the six bars, aligned top-right. It holds exactly
+   one control: the segmented switch */
+.xjc-mode {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+/* mode-change loading: a small spinner centered where the bars were,
+   holding their place while the new mode's request runs */
+.xjc-load {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 56px;
+}
+
+.xjc-spinner {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #2f3336;
+  border-top-color: #1d9bf0;
+  animation: xjc-spin 0.7s linear infinite;
+}
+
+@keyframes xjc-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* one compact outlined switch, X dark style: selected side blue
+   (#1d9bf0), unselected side dark gray */
+.xjc-switch {
+  display: inline-flex;
+  align-items: stretch;
+  font-family: inherit;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  color: #71767b;
+  background: transparent;
+  border: 1px solid #536471;
+  border-radius: 9999px;
+  padding: 2px;
+  gap: 2px;
+  cursor: pointer;
+}
+
+/* the two internal labels: 🚀 PRO on the left, 🤮 MEME on the right */
+.xjc-opt {
+  border-radius: 9999px;
+  padding: 1px 10px;
+  color: #71767b;
+  background: transparent;
+}
+
+/* the selected side turns blue, the other stays dark gray */
+.xjc-switch[aria-checked="true"] .xjc-opt-pro,
+.xjc-switch[aria-checked="false"] .xjc-opt-meme {
+  color: #fff;
+  background: #1d9bf0;
+}

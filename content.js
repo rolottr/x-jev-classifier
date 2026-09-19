@@ -7,6 +7,7 @@ const queue = [];
 let active = 0;
 let marked = 0;
 let chipWarned = false;
+let feedEnabled = null;
 
 // One color per archetype. Used for the pill tint and the solid hover fill.
 const TYPE_COLORS = {
@@ -53,6 +54,11 @@ function setChipWorking(on) {
 function setChipNote(text) {
   const chip = document.getElementById("xb-chip");
   if (chip && text) chip.innerHTML = `<span class="xb-ninja">🥷</span><span>${text}</span>`;
+}
+
+function setChipVisible(on) {
+  const chip = document.getElementById("xb-chip");
+  if (chip) chip.hidden = !on;
 }
 
 function bar(frac, hot) {
@@ -152,6 +158,7 @@ function pump() {
 
 async function mark(el, quote) {
   // read the text BEFORE inserting the badge, so the badge words never leak in
+  if (feedEnabled !== true) return;
   const text = (el.innerText || "").trim().slice(0, 2000);
   if (!text) return;
   let res;
@@ -168,6 +175,7 @@ async function mark(el, quote) {
     el.removeAttribute("data-xb"); // allow retry later
     return;
   }
+  if (feedEnabled !== true) return;
   el.classList.add("xb-host");
   el.insertBefore(badge(res.result), el.firstChild);
   marked++;
@@ -190,6 +198,7 @@ function quoteTextFor(article, mainEl) {
 }
 
 function scan() {
+  if (feedEnabled !== true) return;
   makeChip();
   document.querySelectorAll('div[data-testid="tweetText"]').forEach((el) => {
     if (el.dataset.xb) return;
@@ -212,6 +221,29 @@ const observer = new MutationObserver(() => {
   timer = setTimeout(scan, 400);
 });
 
+function applyFeedEnabled(on) {
+  feedEnabled = on;
+  setChipVisible(on);
+  if (!on) {
+    queue.length = 0;
+    setChipWorking(false);
+  } else {
+    scan();
+  }
+}
+
+async function loadFeedEnabled() {
+  const s = await chrome.storage.local.get(["enabled", "feedEnabled"]);
+  const legacyEnabled = s.enabled !== false;
+  applyFeedEnabled(s.feedEnabled === undefined
+    ? legacyEnabled : s.feedEnabled !== false);
+}
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local" || (!changes.feedEnabled && !changes.enabled)) return;
+  loadFeedEnabled();
+});
+
 makeChip();
-scan();
 observer.observe(document.body, { childList: true, subtree: true });
+loadFeedEnabled();
